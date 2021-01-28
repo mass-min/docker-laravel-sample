@@ -1,0 +1,61 @@
+version: '3'
+
+services:
+  mysql:
+    build:
+      context: .
+      dockerfile: ./docker/mysql/Dockerfile
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-root}
+      MYSQL_DATABASE: ${DB_DATABASE:-laravel_dev}
+    ports:
+      - 3306:3306
+    volumes:
+      - ./docker/mysql/tmp/mysql:/var/lib/mysql
+  php:
+    build:
+      context: .
+      dockerfile: ./docker/php/Dockerfile
+    environment:
+      DB_HOST: ${DB_HOST:-mysql}
+    tty: true
+    stdin_open: true
+    volumes:
+      - .:/usr/src/laravel-app
+      - ./node_modules:/usr/src/laravel-app/node_modules
+      - ./vendor:/usr/src/laravel-app/vendor
+    depends_on:
+      - mysql
+  nginx:
+    build:
+      context: .
+      dockerfile: ./docker/nginx/Dockerfile
+    volumes:
+      - ./public:/usr/src/laravel-app/public
+    ports:
+      - 80:80
+    depends_on:
+      - php
+  redis:
+    image: library/redis:6.0.10-alpine
+  queue:
+    build:
+      context: .
+      dockerfile: ./docker/php/Dockerfile
+    environment:
+      DB_HOST: ${DB_HOST:-mysql}
+    tty: true
+    stdin_open: true
+    volumes:
+      - .:/usr/src/laravel-app
+      - ./node_modules:/usr/src/laravel-app/node_modules
+      - ./vendor:/usr/src/laravel-app/vendor
+    entrypoint:
+      - "/usr/bin/supervisord"
+      - "-n"
+      - "-c"
+      - "/etc/supervisord.conf"
+  mail:
+    image: mailhog/mailhog
+    ports:
+      - 8025:8025
